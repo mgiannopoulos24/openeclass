@@ -453,7 +453,8 @@ function display_analytics_information($analytics_id) {
     $active_msg = $sql_data->active ? $langActive : $langInactive;
     $start_date = format_locale_date(strtotime($sql_data->start_date), 'short', false);
     $end_date = format_locale_date(strtotime($sql_data->end_date), 'short', false);
-    $periodType = periodType::periodType[$sql_data->periodType]['title'];
+    $periodTypes = PeriodType::periodType();
+    $periodType = isset($periodTypes[$sql_data->periodType]) ? $periodTypes[$sql_data->periodType]['title'] : '-';
 
     $tool_content .= "
         <div class='col-12'>
@@ -1485,39 +1486,59 @@ function switch_activation($analytics_id, $active) {
 
 
 /**
+ * @brief get title of the specific resource
+ * @param $resource
+ * @param $module_id
+ * @return string
+ */
+function get_resource_title($resource, $module_id) {
+    if (empty($resource)) {
+        return '';
+    }
+    $resource_title = '';
+    switch ($module_id) {
+        case ANALYTICS_ASSIGNMENTGRADE:
+        case ANALYTICS_ASSIGNMENTDL:
+            $result = Database::get()->querySingle("SELECT title FROM assignment WHERE id = ?d", $resource);
+            if ($result && !empty($result->title)) {
+                $resource_title = $result->title;
+            }
+            break;
+        case ANALYTICS_EXERCISEGRADE:
+            $result = Database::get()->querySingle("SELECT title FROM exercise WHERE id = ?d", $resource);
+            if ($result && !empty($result->title)) {
+                $resource_title = $result->title;
+            }
+            break;
+        case ANALYTICS_LPPERCENTAGE:
+            $result = Database::get()->querySingle("SELECT name as title FROM lp_learnPath WHERE learnPath_id = ?d", $resource);
+            if ($result && !empty($result->title)) {
+                $resource_title = $result->title;
+            }
+            break;
+        case ANALYTICS_FILEVIEW:
+            $result = Database::get()->querySingle("SELECT (CASE WHEN title IS NULL OR title=' ' THEN filename ELSE title END) as title FROM document WHERE id = ?d", $resource);
+            if ($result && !empty($result->title)) {
+                $resource_title = $result->title;
+            }
+            break;
+    }
+    return $resource_title;
+}
+
+/**
  * @brief get info about resource to be displayed
  * @param $resource
  * @param $module_id
  * @return string
  */
 function get_resource_info($resource, $module_id) {
-    $module_title = ElementTypes::elements()[$module_id]['title'];
-    $resource_title = '';
-    switch ($module_id) {
-        case ANALYTICS_ASSIGNMENTGRADE:
-            $result = Database::get()->querySingle("SELECT title FROM assignment WHERE id = ?d", $resource);
-            $resource_title = ' (' . $result->title. ') ';
-            break;
-        case ANALYTICS_ASSIGNMENTDL:
-            $result = Database::get()->querySingle("SELECT title FROM assignment WHERE id = ?d", $resource);
-            $resource_title = ' (' . $result->title. ') ';
-            break;
-        case ANALYTICS_EXERCISEGRADE:
-            $result = Database::get()->querySingle("SELECT title FROM exercise WHERE id = ?d", $resource);
-            $resource_title = ' (' . $result->title. ') ';
-            break;
-        case ANALYTICS_LPPERCENTAGE:
-            $result = Database::get()->querySingle("SELECT name as title FROM lp_learnPath WHERE learnPath_id = ?d", $resource);
-            $resource_title = ' (' . $result->title. ') ';
-            break;
-        case ANALYTICS_FILEVIEW:
-            $result = Database::get()->querySingle("SELECT  (CASE WHEN title IS NULL OR title=' ' THEN filename ELSE title END) as title FROM document WHERE id = ?d", $resource);
-            $resource_title = ' (' . $result->title. ') ';
-            break;
-
+    $module_title = ElementTypes::elements()[$module_id]['title'] ?? '';
+    $resource_title = get_resource_title($resource, $module_id);
+    if (!empty($resource_title)) {
+        return $module_title . ' (' . $resource_title . ')';
     }
-
-    return '' . $module_title .  $resource_title ;
+    return $module_title;
 }
 
 /**
