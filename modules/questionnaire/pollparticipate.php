@@ -63,6 +63,7 @@ $head_content .= "
 ";
 
 if (isset($_GET['from_session_view'])) {
+    session_exists(intval($_GET['session'] ?? 0));
     if (isset($_GET['session'])) {
         check_user_belongs_in_session($_GET['session']);
     }
@@ -448,7 +449,7 @@ function printPollForm() {
                 // Clean question from session data
                 var qQuestion = $(this).attr('data-question-clean');
                 $.ajax({
-                    url: '$_SERVER[SCRIPT_NAME]?course=$course_code&UseCase=1&pid=$pid',
+                    url: '{$urlAppend}modules/questionnaire/pollparticipate.php?course=$course_code&UseCase=1&pid=$pid',
                     method: 'POST',
                     data: { clean_question_id: qQuestion, clean_sub_question_id: sSubq },
                 });
@@ -460,7 +461,7 @@ function printPollForm() {
         $(function() {
             function save_data(callback) {
                 var obj = {};
-                var checkBoxesVal = [];
+                var checkBoxesVal = {};
                 document.querySelectorAll('[data-question-type]').forEach(function(elem) {
                     if (elem) {
                         var qType = $(elem).attr('data-question-type');
@@ -484,9 +485,11 @@ function printPollForm() {
                                 if (!obj[qRow]) {
                                     obj[qRow] = {};
                                 }
-                                checkBoxesVal.push(elem.value);
-                                const result = checkBoxesVal.join(',');
-                                obj[qRow] = result;
+                                if (!checkBoxesVal[qRow]) {
+                                    checkBoxesVal[qRow] = [];
+                                }
+                                checkBoxesVal[qRow].push(elem.value);
+                                obj[qRow] = checkBoxesVal[qRow].join(',');
                             }
                         } else if (qType == 6) { // table
                             if (foundNumbers.length == 2 && elem.value != '') {
@@ -502,7 +505,7 @@ function printPollForm() {
                 });
                 // Send data via AJAX
                 $.ajax({
-                    url: '$_SERVER[SCRIPT_NAME]?course=$course_code&UseCase=1&pid=$pid',
+                    url: '{$urlAppend}modules/questionnaire/pollparticipate.php?course=$course_code&UseCase=1&pid=$pid',
                     method: 'POST',
                     data: { data_answers: obj },
                     success: function(response) {
@@ -554,6 +557,9 @@ function printPollForm() {
         check_user_belongs_in_session(intval($_GET['session']));
         $_SESSION['onBehalfOfUserId'] = intval($_POST['userSelected']);
         unset($_SESSION['loop_init_answers_session']);
+    }
+    if (isset($_GET['emptyQ']) && isset($_GET['su']) && isset($_GET['from_session_view'])) {
+        $_SESSION['onBehalfOfUserId'] = intval($_GET['su']);
     }
     $userDefault = $_SESSION['onBehalfOfUserId'] ?? $uid;
 
@@ -689,10 +695,6 @@ function printPollForm() {
                                                                  AND mod_session_users.is_accepted = ?d", intval($_GET['session']), 1);
 
             $actionPoll = $urlAppend . "modules/units/view.php?course=$course_code&res_type=questionnaire&pid=$pid&UseCase=1&session=" . intval($_GET['session']) . "&from_session_view=true&onBehalfOfUser=true";
-            $disabledUserSelection = '';
-            if (isset($_GET['emptyQ'])) {
-                $disabledUserSelection = 'disabled';
-            }
             $tool_content .= "
                 <div class='col-12 mb-4'>
                     <div class='card panelCard card-default px-lg-4 py-lg-3 mb-4'>
@@ -701,14 +703,14 @@ function printPollForm() {
                         </div>
                         <div class='card-body'>
                             <form id='onBehalfOfSelectionForm' method='post' action='$actionPoll'>
-                                <select id='onBehalfOfSelection' class='form-select' name='userSelected' $disabledUserSelection>";
+                                <select id='onBehalfOfSelection' class='form-select' name='userSelected'>";
                                     $tool_content .= "<option value='0' selected>$langSelect</option>";
                                     foreach ($session_participants as $p) {
                                         $tool_content .= "<option value='{$p->participants}' " . ($userDefault == $p->participants ? 'selected' : '') . ">{$p->givenname}&nbsp;{$p->surname}</option>";
                                     }
             $tool_content .= " </select>
                             </form>";
-                            if ($userDefault > 0) {
+                            if (isset($_SESSION['onBehalfOfUserId']) && $_SESSION['onBehalfOfUserId'] != $uid) {
                                 $tool_content .= "
                                 <div class='d-flex justify-content-start align-items-center gap-3 mt-3 flex-wrap'>
                                     $langProcessForFiliInTool
@@ -1037,7 +1039,7 @@ function printPollForm() {
                                             $text = '';
                                             $QText = Database::get()->querySingle("SELECT question_text FROM poll_question WHERE pqid = ?d", $theAnswer->sub_qid)->question_text;
                                             if (isset($_SESSION['data_answers']) && !empty($_SESSION['data_answers'][$theAnswer->sub_qid])) {
-                                                $text = $_SESSION['data_answers'][$theAnswer->sub_qid];
+                                                $text = q($_SESSION['data_answers'][$theAnswer->sub_qid]);
                                             }
                                             $tool_content .= "
                                             <p tabindex='0' class='TextMedium Neutral-900-cl mb-2'>$QText</p>
@@ -1102,7 +1104,7 @@ function printPollForm() {
                             } elseif ($qtype == QTYPE_FILL) {
                                 $text = '';
                                 if (isset($_SESSION['data_answers']) && !empty($_SESSION['data_answers'][$pqid])) {
-                                    $text = $_SESSION['data_answers'][$pqid];
+                                    $text = q($_SESSION['data_answers'][$pqid]);
                                 }
                                 $tool_content .= "
                                     <div class='form-group margin-bottom-fat'>
@@ -1151,7 +1153,7 @@ function printPollForm() {
                                                                     $ansCounter = $ansCounter+1;
                                                                     $text = '';
                                                                     if (isset($_SESSION['data_answers']) && !empty($_SESSION['data_answers'][$theQuestion->pqid][$ansCounter])) {
-                                                                        $text = $_SESSION['data_answers'][$theQuestion->pqid][$ansCounter];
+                                                                        $text = q($_SESSION['data_answers'][$theQuestion->pqid][$ansCounter]);
                                                                     }
                                                                     if ($pageBreakExists) {
                                                                         $_SESSION['q_row_columns'][$pqid][] = "$pqid,$val_row,$val_col,$ansCounter";
@@ -1176,7 +1178,7 @@ function printPollForm() {
                             } elseif ($qtype == QTYPE_DATETIME || $qtype == QTYPE_SHORT || $qtype == QTYPE_DATE) {
                                 $text = '';
                                 if (isset($_SESSION['data_answers']) && !empty($_SESSION['data_answers'][$pqid])) {
-                                    $text = $_SESSION['data_answers'][$pqid];
+                                    $text = q($_SESSION['data_answers'][$pqid]);
                                 }
 
                                 if ($qtype == QTYPE_DATETIME) {
@@ -1278,7 +1280,7 @@ function printPollForm() {
         $tool_content .= "<div class='col-12 d-flex justify-content-center mt-5'>";
         if ($is_editor && !isset($_GET['onBehalfOfUser'])) {
             if (isset($_GET['from_session_view'])) {
-                $tool_content .= "<a class='btn cancelAdminBtn' href='../session/session_space.php?course=$course_code&amp;cancelPoll=true&amp;session=$_GET[session]'>" . q($langBack) . "</a>";
+                $tool_content .= "<a class='btn cancelAdminBtn' href='../session/session_space.php?course=$course_code&amp;cancelPoll=true&amp;session=" . intval($_GET['session']) . "'>" . q($langBack) . "</a>";
             } else {
                 $tool_content .= "<a class='btn cancelAdminBtn' href='index.php?course=$course_code&cancelPoll=true'>" . q($langBack) . "</a>";
             }
@@ -1309,7 +1311,7 @@ function printPollForm() {
                     $tool_content .= "<a class='btn cancelAdminBtn ms-3' href='../units/index.php?course=$course_code&amp;id=$_REQUEST[unit_id]'>" . q($langCancel) . "</a>";
                 } else {
                     if (isset($_GET['from_session_view'])) {
-                        $tool_content .= "<a class='btn cancelAdminBtn ms-3' href='../session/session_space.php?course=$course_code&amp;cancelPoll=true&amp;session=$_GET[session]'>" . q($langCancel). "</a>";
+                        $tool_content .= "<a class='btn cancelAdminBtn ms-3' href='../session/session_space.php?course=$course_code&amp;cancelPoll=true&amp;session=" . intval($_GET['session']) . "'>" . q($langCancel). "</a>";
                     } else {
                         $tool_content .= "<a class='btn cancelAdminBtn ms-3' href='index.php?course=$course_code&cancelPoll=true'>" . q($langCancel) . "</a>";
                     }
@@ -1667,7 +1669,7 @@ function submitPoll() {
             $tool_content .= "<a class='btn cancelAdminBtn' href='../units/index.php?course=$course_code&amp;id=$_REQUEST[unit_id]'>$langBack</a>";
         } else if (isset($_REQUEST['res_type'])) {
             if (isset($_GET['from_session_view'])) {
-                $tool_content .= "<a class='btn btn-primary' href='../session/session_space.php?course=$course_code&amp;session=$_GET[session]'>$langBack</a>";
+                $tool_content .= "<a class='btn btn-primary' href='../session/session_space.php?course=$course_code&amp;session=" . intval($_GET['session']) . "'>$langBack</a>";
             } else {
                 $tool_content .= "<a class='btn btn-primary' href='../wall/index.php?course=$course_code'>$langBack</a>";
             }
