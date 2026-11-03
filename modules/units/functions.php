@@ -770,12 +770,9 @@ function show_resources($unit_id)
  */
 function show_resource($info) {
 
-    global $langUnknownResType, $is_editor, $langConfirmLpCleanAttemptTitle, $langConfirmLpCleanAttemptBody;
+    global $langUnknownResType, $langConfirmLpCleanAttemptTitle, $langConfirmLpCleanAttemptBody;
 
     $html = '';
-    if ($info->visible == 0 and $info->type != 'doc' and ! $is_editor) { // special case handling for old unit resources with type 'doc' .
-        return;
-    }
     switch ($info->type) {
         case 'doc':
             $html .= show_doc($info->title, $info->comments, $info->id, $info->res_id, $info->activity_title);
@@ -784,7 +781,7 @@ function show_resource($info) {
         case 'text':
             $html .= show_text($info->comments, $info->id, $info->visible, $info->activity_title);
             break;
-        case 'description': // deprecated module. only for compatibility !
+        case 'description': // deprecated module. only for compatibility!
             $html .= show_description($info->title, $info->comments, $info->id, $info->res_id, $info->visible, $info->activity_title);
             break;
         case 'lp':
@@ -1296,7 +1293,6 @@ function show_work($title, $comments, $resource_id, $work_id, $visibility, $act_
               <div class='row m-0 flex-column flex-lg-row gap-2 gap-lg-0'>
                 <div class='col-lg-9 p-0 m-0 d-flex flex-column'>
                     <div>$exlink</div>
-                    <div class='content'>$comment_box</div>
                 </div>
                 <div class='col-lg-3 gap-2 gap-lg-0 p-0 m-0 d-flex flex-row flex-lg-column align-items-center justify-content-start align-items-lg-end justify-content-lg-end'>
                     $hasparticipated_grade $res_prereq_icon $assign_to_users_message
